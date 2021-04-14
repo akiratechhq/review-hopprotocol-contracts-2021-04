@@ -1,0 +1,694 @@
+{{> partials/splash}}
+
+[TOC]
+
+## Details
+
+- **Client** {{client_name}}
+- **Date** {{date}}
+- **Lead reviewer** Daniel Luca ([@cleanunicorn](https://twitter.com/cleanunicorn))
+- **Reviewers** Daniel Luca ([@cleanunicorn](https://twitter.com/cleanunicorn))
+- **Repository**: [{{project_name}}]({{source_repository}})
+- **Commit hash** `{{commit_hash}}`
+- **Technologies**
+  - Solidity
+  - Node.JS
+
+## Issues Summary
+
+| SEVERITY       |    OPEN    |    CLOSED    |
+|----------------|:----------:|:------------:|
+{{#issues_summary}}
+|  {{severity}}  |  {{open}}  |  {{closed}}  |
+{{/issues_summary}}
+
+## Executive summary
+
+This report represents the results of the engagement with **{{client_name}}** to review **{{project_name}}**.
+
+The review was conducted over the course of **{{review_period}}** from **{{date_interval}}**. A total of **{{person_days}} person-days** were spent reviewing the code.
+
+### Week 1
+
+During the first week, we started by viewing the kick-off call and getting more familiar with the architecture and the overall setup.
+
+In the second day of the audit, we updated the commit hash to include a Merkle tree update. The `MerkleUtils` library was swapped out with the one Optimism is using. The scope was increased to include a few other contracts that are part of the system and extend the original scope included contracts.
+
+During the 3rd day, after getting more familiar with the code and the overall architecture, we proceeded to read the whitepaper and the rest of the documentation. Our goal was to understand all the key terms and components to make sure the definitions are completely understood in the context of the system.
+
+At the end of the week, we had another meeting with the development team to go together through a few scenarios. The important scenarios were related to entry points and data flow when a user crosses one of the bridges, i.e., user crossing L1 -> L2, user crossing L2a -> L2b (different layer 2 chains).
+
+### Week 2
+
+During the second week we set a daily meeting with the development team up until the end of the review to discuss new findings and ask any outstanding questions.
+
+On Monday we identified a few small issues related to the Automated Market Maker Wrapper (AmmWrapper) and add a few questions for the development team. We proceeded to ask these questions in our daily sync. Some of the raised issues were already identified by the development team and fixed in their internal audit.
+
+On Tuesday the development team shared with us an updated document with a few scenarios and their entry points that we should review.
+
+[Text version of shared interaction doc](https://gist.github.com/shanefontaine/e7683e3f417a05d800661342f7d91d32/26db9f0cb661e8bb9f3427480d9bbefec1705438)
+
+Rendered version of the interaction below:
+
+![Shared interaction doc](./static/a0e057f2-9266-49b6-8104-c72acddfd6e7.png)
+
+On Wednesday we continued to draft issues based on the feedback received and continued to do the manual review.
+
+At the end of the week we agreed to add another 3 person days in order to fully cover the review.
+
+### Week 3
+
+We continued the review, mostly focusing on the challenge, confirmation and root id confirmation.
+
+At the end of the review period we finalized the report and presented it to the development team.
+
+## Scope
+
+The initial review focused on the [{{project_name}}]({{source_repository}}) identified by the commit hash `{{commit_hash}}`.
+
+We focused on manually reviewing the codebase, searching for security issues such as, but not limited to re-entrancy problems, transaction ordering, block timestamp dependency, exception handling, call stack depth limitation, integer overflow/underflow, self-destructible contracts, unsecured balance, use of origin, gas costly patterns, architectural problems, code readability.
+
+**Includes:**
+
+- ./bridges/Accounting.sol
+- ./bridges/Bridge.sol
+- ./bridges/L1_Bridge.sol
+- ./bridges/L1_ETH_Bridge.sol
+- ./bridges/L1_ERC20_Bridge.sol
+- ./bridges/L2_Bridge.sol
+- ./bridges/L2_AmmWrapper.sol
+- ./wrappers/ArbitrumMessengerWrapper.sol
+- ./wrappers/MessengerWrapper.sol
+- ./wrappers/OptimismMessengerWrapper.sol
+- ./wrappers/XDaiMessengerWrapper.sol
+
+**Excludes:**
+
+All other contracts
+
+[Kickoff Call]: https://us02web.zoom.us/rec/share/bNizG-qf8coRzKTh4hX_M9Avo38ysBr8RU-XhVehgdDTNWfDMS3TXIO6fy8DWuQu.QZ3RuBLnq9KXHbED?startTime=1616772767000
+
+## Recommendations
+
+We identified a few possible general improvements that are not security issues during the review, which will bring value to the developers and the community reviewing and using the product.
+
+### Improve tests
+
+Currently the tests do not pass. This is because the optimism compiler npm package was changed since the code was frozen, up until the tests were run on our end. This isn't a problem with the code itself, but pinning the npm packages to a fixed version will prevent similar situations.
+
+A sample `.env.example` config file should also be provided to anyone that wants to run the tests.
+
+Improve the testing process to make sure all functionality is first tested and then implemented, basically writing the tests first and the implementation after. This way ensures each line of code is tested and no line of code is superfluous.
+
+### Set up Continuous Integration
+
+Use one of the platforms that offer Continuous Integration services and implement a list of actions that compile, test, run coverage and create alerts when the pipeline fails.
+
+Because the repository is hosted on GitHub, the most painless way to set up the Continuous Integration is through [GitHub Actions](https://docs.github.com/en/free-pro-team@latest/actions).
+
+Setting up the workflow can start based on this example template.
+
+```yml
+name: Continuous Integration
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [12.x]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - run: npm ci
+    - run: cp ./config.sample.js ./config.js
+    - run: npm test
+
+  coverage:
+    name: Coverage
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [12.x]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - run: npm ci
+    - run: cp ./config.sample.js ./config.js
+    - run: npm run coverage
+    - uses: actions/upload-artifact@v2
+      with:
+        name: Coverage ${{ matrix.node-version }}
+        path: |
+          coverage/
+```
+
+This CI template activates on pushes and pull requests on the **master** branch.
+
+```yml
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+```
+
+It uses an [Ubuntu Docker](https://hub.docker.com/_/ubuntu) image as a base for setting up the project.
+
+```yml
+    runs-on: ubuntu-latest
+```
+
+Multiple Node.js versions can be used to check integration. However, because this is not primarily a Node.js project, multiple versions don't provide added value.
+
+```yml
+    strategy:
+      matrix:
+        node-version: [12.x]
+```
+
+A script item should be added in the `scripts` section of [package.json](./code/package.json) that runs all tests.
+
+```json
+{
+   "script": {
+      "test": "buidler test"
+   }
+}
+```
+
+This can then be called by running `npm test` after setting up the dependencies with `npm ci`. 
+
+If any hidden variables need to be defined, you can set them up in a local version of `./config.sample.js` (locally named `./config.js`). If you decide to do that, you should also add `./config.js` in `.gitignore` to make sure no hidden variables are pushed to the public repository. The sample config file `./config.sample.js` should be sufficient to pass the test suite.
+
+```yml
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - run: npm ci
+    - run: cp ./config.sample.js ./config.js
+    - run: npm test
+```
+
+You can also choose to run coverage and upload the generated artifacts. 
+
+```yml
+    - run: npm run coverage
+    - uses: actions/upload-artifact@v2
+      with:
+        name: Coverage ${{ matrix.node-version }}
+        path: |
+          coverage/
+```
+
+At the moment, checking the artifacts is not [that](https://github.community/t/browsing-artifacts/16954) [easy](https://github.community/t/need-clarification-on-github-actions/16027/2), because one needs to download the zip archive, unpack it and check it. However, the coverage can be checked in the [Actions](https://github.com/indexed-finance/indexed-core/actions) section once it's set up.
+
+## Issues
+
+{{#issues}}
+
+### [{{title}}]({{url}})
+![Issue status: {{status}}](https://img.shields.io/static/v1?label=Status&message={{status}}&color={{status_color}}&style=flat-square) ![{{severity}}](https://img.shields.io/static/v1?label=Severity&message={{severity}}&color={{severity_color}}&style=flat-square)
+
+{{{body}}}
+
+---
+
+{{/issues}}
+
+## Artifacts
+
+### Surya
+
+Sūrya is a utility tool for smart contract systems. It provides a number of visual outputs and information about the structure of smart contracts. It also supports querying the function call graph in multiple ways to aid in the manual inspection and control flow analysis of contracts.
+
+<!-- **Contracts Description Table**
+
+```text
+surya mdreport report.md Contract.sol
+```
+
+-->
+
+#### Graphs
+
+##### Inheritance
+
+Display of the full inheritance path.
+
+![Inheritance](./static/bridges_inheritance.png)
+
+##### Full graph of interaction
+
+Some of the interactions are not visible in this graph because they are sent over the bridge by abi encoding and seding them over the messenger.
+
+![Full graph](./static/bridges_graph.png)
+
+##### Bridges graph
+
+![Bridges](./static/bridges_graph.png)
+
+##### Bridge graph
+
+![Bridge graph](./static/Bridge_graph.png)
+
+##### L1_Bridge
+
+![L1_Bridge graph](./static/L1_Bridge_graph.png)
+
+##### L2_Bridge
+
+![L2_Bridge graph](./static/L2_Bridge_graph.png)
+
+<!-- ***Contract***
+
+```text
+surya graph Contract.sol | dot -Tpng > ./static/Contract_graph.png
+```
+
+![Contract Graph](./static/Contract_graph.png)
+
+```text
+surya inheritance Contract.sol | dot -Tpng > ./static/Contract_inheritance.png
+```
+
+![Contract Inheritance](./static/Contract_inheritance.png)
+
+```text
+Use Solidity Visual Auditor
+```
+
+![Contract UML](./static/Contract_uml.png) -->
+
+#### Describe
+
+##### Files Description Table
+
+
+| File Name                                 | SHA-1 Hash                               |
+| ----------------------------------------- | ---------------------------------------- |
+| ./contracts/bridges/Accounting.sol        | dd830703b1d1fa5ed53b50d807ef19657d36e168 |
+| ./contracts/bridges/Bridge.sol            | 7a5a673d36e65640d01a3b9057cd878ed8d76613 |
+| ./contracts/bridges/HopBridgeToken.sol    | a006bd5671b05bce010e0583ff7371a55beb4406 |
+| ./contracts/bridges/L1_Bridge.sol         | a96db5f564635ad532909560480bc079ae1d9b7d |
+| ./contracts/bridges/L1_ERC20_Bridge.sol   | d24c55c6668d4d280290f2580a8c16cb3b3d9f4f |
+| ./contracts/bridges/L1_ETH_Bridge.sol     | 242b48dad540ad06320e545905d7aa7c7abe81c4 |
+| ./contracts/bridges/L2_AmmWrapper.sol     | 53286765e1cd505c2055cc357862f9225ab09257 |
+| ./contracts/bridges/L2_ArbitrumBridge.sol | 146eb9cc5903c55133e63d72b80200be49401e93 |
+| ./contracts/bridges/L2_Bridge.sol         | 3840324c973bd5a0b338f9e85b8f115f64a9fc60 |
+| ./contracts/bridges/L2_OptimismBridge.sol | 945ae3984a17b087889de7245688825bce5b6df2 |
+| ./contracts/bridges/L2_UniswapWrapper.sol | 67a4f013266ff156636184124bc20b8db3a35dec |
+| ./contracts/bridges/L2_XDaiBridge.sol     | 56d4e2b02bbb7b4d76dd31c1a47642fc5ab1ee54 |
+
+
+##### Contracts Description Table
+
+
+|       Contract        |                Type                 |     Bases      |                |                                   |
+| :-------------------: | :---------------------------------: | :------------: | :------------: | :-------------------------------: |
+|           └           |          **Function Name**          | **Visibility** | **Mutability** |           **Modifiers**           |
+|                       |                                     |                |                |                                   |
+|    **Accounting**     |           Implementation            |                |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |                NO❗️                |
+|           └           |         _transferFromBridge         |   Internal 🔒   |       🛑        |                                   |
+|           └           |          _transferToBridge          |   Internal 🔒   |       🛑        |                                   |
+|           └           |        _requireIsGovernance         |   Internal 🔒   |       🛑        |                                   |
+|           └           |          _additionalDebit           |   Internal 🔒   |                |                                   |
+|           └           |             getIsBonder             |    Public ❗️    |                |                NO❗️                |
+|           └           |              getCredit              |    Public ❗️    |                |                NO❗️                |
+|           └           |             getRawDebit             |   External ❗️   |                |                NO❗️                |
+|           └           |     getDebitAndAdditionalDebit      |    Public ❗️    |                |                NO❗️                |
+|           └           |                stake                |   External ❗️   |       💵        |                NO❗️                |
+|           └           |               unstake               |   External ❗️   |       🛑        |      requirePositiveBalance       |
+|           └           |              addBonder              |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |            removeBonder             |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |             _addCredit              |   Internal 🔒   |       🛑        |                                   |
+|           └           |              _addDebit              |   Internal 🔒   |       🛑        |                                   |
+|                       |                                     |                |                |                                   |
+|      **Bridge**       |           Implementation            |   Accounting   |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |            Accounting             |
+|           └           |            getTransferId            |    Public ❗️    |                |                NO❗️                |
+|           └           |             getChainId              |    Public ❗️    |                |                NO❗️                |
+|           └           |          getTransferRootId          |    Public ❗️    |                |                NO❗️                |
+|           └           |           getTransferRoot           |    Public ❗️    |                |                NO❗️                |
+|           └           |      getBondedWithdrawalAmount      |   External ❗️   |                |                NO❗️                |
+|           └           |          isTransferIdSpent          |   External ❗️   |                |                NO❗️                |
+|           └           |              withdraw               |   External ❗️   |       🛑        |                NO❗️                |
+|           └           |           bondWithdrawal            |   External ❗️   |       🛑        | onlyBonder requirePositiveBalance |
+|           └           |       settleBondedWithdrawal        |   External ❗️   |       🛑        |                NO❗️                |
+|           └           |       settleBondedWithdrawals       |   External ❗️   |       🛑        |                NO❗️                |
+|           └           |         rescueTransferRoot          |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |         _markTransferSpent          |   Internal 🔒   |       🛑        |                                   |
+|           └           |        _addToAmountWithdrawn        |   Internal 🔒   |       🛑        |                                   |
+|           └           |          _setTransferRoot           |   Internal 🔒   |       🛑        |                                   |
+|           └           |           _bondWithdrawal           |   Internal 🔒   |       🛑        |                                   |
+|           └           |          _fulfillWithdraw           |   Private 🔐    |       🛑        |                                   |
+|                       |                                     |                |                |                                   |
+|  **HopBridgeToken**   |           Implementation            | ERC20, Ownable |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |               ERC20               |
+|           └           |                mint                 |   External ❗️   |       🛑        |             onlyOwner             |
+|           └           |                burn                 |   External ❗️   |       🛑        |             onlyOwner             |
+|                       |                                     |                |                |                                   |
+|     **L1_Bridge**     |           Implementation            |     Bridge     |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |              Bridge               |
+|           └           |              sendToL2               |   External ❗️   |       💵        |                NO❗️                |
+|           └           |          bondTransferRoot           |   External ❗️   |       🛑        | onlyBonder requirePositiveBalance |
+|           └           |         confirmTransferRoot         |   External ❗️   |       🛑        |           onlyL2Bridge            |
+|           └           |       _distributeTransferRoot       |   Internal 🔒   |       🛑        |                                   |
+|           └           |        challengeTransferBond        |   External ❗️   |       💵        |                NO❗️                |
+|           └           |          resolveChallenge           |   External ❗️   |       🛑        |                NO❗️                |
+|           └           |          _additionalDebit           |   Internal 🔒   |                |                                   |
+|           └           |        _requireIsGovernance         |   Internal 🔒   |       🛑        |                                   |
+|           └           |            setGovernance            |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |   setCrossDomainMessengerWrapper    |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |      setChainIdDepositsPaused       |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |    setChallengeAmountMultiplier     |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |      setChallengeAmountDivisor      |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |  setChallengePeriodAndTimeSlotSize  |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |    setChallengeResolutionPeriod     |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |     setMinTransferRootBondDelay     |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |      getBondForTransferAmount       |    Public ❗️    |                |                NO❗️                |
+|           └           | getChallengeAmountForTransferAmount |    Public ❗️    |                |                NO❗️                |
+|           └           |             getTimeSlot             |    Public ❗️    |                |                NO❗️                |
+|                       |                                     |                |                |                                   |
+|  **L1_ERC20_Bridge**  |           Implementation            |   L1_Bridge    |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |             L1_Bridge             |
+|           └           |         _transferFromBridge         |   Internal 🔒   |       🛑        |                                   |
+|           └           |          _transferToBridge          |   Internal 🔒   |       🛑        |                                   |
+|                       |                                     |                |                |                                   |
+|   **L1_ETH_Bridge**   |           Implementation            |   L1_Bridge    |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |             L1_Bridge             |
+|           └           |         _transferFromBridge         |   Internal 🔒   |       🛑        |                                   |
+|           └           |          _transferToBridge          |   Internal 🔒   |       🛑        |                                   |
+|                       |                                     |                |                |                                   |
+|   **L2_AmmWrapper**   |           Implementation            |                |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |                NO❗️                |
+|           └           |             swapAndSend             |    Public ❗️    |       💵        |                NO❗️                |
+|           └           |             attemptSwap             |   External ❗️   |       🛑        |                NO❗️                |
+|                       |                                     |                |                |                                   |
+| **L2_ArbitrumBridge** |           Implementation            |   L2_Bridge    |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |             L2_Bridge             |
+|           └           |       _sendCrossDomainMessage       |   Internal 🔒   |       🛑        |                                   |
+|           └           |            _verifySender            |   Internal 🔒   |       🛑        |                                   |
+|           └           |            setMessenger             |   External ❗️   |       🛑        |           onlyL1Bridge            |
+|                       |                                     |                |                |                                   |
+|     **L2_Bridge**     |           Implementation            |     Bridge     |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |              Bridge               |
+|           └           |       _sendCrossDomainMessage       |   Internal 🔒   |       🛑        |                                   |
+|           └           |            _verifySender            |   Internal 🔒   |       🛑        |                                   |
+|           └           |                send                 |    Public ❗️    |       🛑        |                NO❗️                |
+|           └           |           commitTransfers           |   External ❗️   |       🛑        |                NO❗️                |
+|           └           |             distribute              |   External ❗️   |       🛑        |           onlyL1Bridge            |
+|           └           |     bondWithdrawalAndDistribute     |   External ❗️   |       🛑        | onlyBonder requirePositiveBalance |
+|           └           |           setTransferRoot           |   External ❗️   |       🛑        |           onlyL1Bridge            |
+|           └           |          _commitTransfers           |   Internal 🔒   |       🛑        |                                   |
+|           └           |             _distribute             |   Internal 🔒   |       🛑        |                                   |
+|           └           |         _transferFromBridge         |   Internal 🔒   |       🛑        |                                   |
+|           └           |          _transferToBridge          |   Internal 🔒   |       🛑        |                                   |
+|           └           |        _requireIsGovernance         |   Internal 🔒   |       🛑        |                                   |
+|           └           |            setAmmWrapper            |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |         setL1BridgeAddress          |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |    setL1MessengerWrapperAddress     |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |        setMessengerGasLimit         |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |        addSupportedChainIds         |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |       removeSupportedChainIds       |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |     setMinimumForceCommitDelay      |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |       setMaxPendingTransfers        |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |       setHopBridgeTokenOwner        |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |   setMinimumBonderFeeRequirements   |   External ❗️   |       🛑        |          onlyGovernance           |
+|           └           |        getNextTransferNonce         |    Public ❗️    |                |                NO❗️                |
+|                       |                                     |                |                |                                   |
+| **L2_OptimismBridge** |           Implementation            |   L2_Bridge    |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |             L2_Bridge             |
+|           └           |       _sendCrossDomainMessage       |   Internal 🔒   |       🛑        |                                   |
+|           └           |            _verifySender            |   Internal 🔒   |       🛑        |                                   |
+|           └           |            setMessenger             |   External ❗️   |       🛑        |           onlyL1Bridge            |
+|           └           |         setDefaultGasLimit          |   External ❗️   |       🛑        |           onlyL1Bridge            |
+|                       |                                     |                |                |                                   |
+| **L2_UniswapWrapper** |           Implementation            |                |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |                NO❗️                |
+|           └           |             swapAndSend             |    Public ❗️    |       💵        |                NO❗️                |
+|           └           |             attemptSwap             |   External ❗️   |       🛑        |                NO❗️                |
+|           └           |             _getHCPath              |   Private 🔐    |                |                                   |
+|           └           |             _getCHPath              |   Private 🔐    |                |                                   |
+|                       |                                     |                |                |                                   |
+|   **L2_XDaiBridge**   |           Implementation            |   L2_Bridge    |                |                                   |
+|           └           |            <Constructor>            |    Public ❗️    |       🛑        |             L2_Bridge             |
+|           └           |       _sendCrossDomainMessage       |   Internal 🔒   |       🛑        |                                   |
+|           └           |            _verifySender            |   Internal 🔒   |       🛑        |                                   |
+|           └           |            setMessenger             |   External ❗️   |       🛑        |           onlyL1Bridge            |
+
+
+##### Legend
+
+| Symbol | Meaning                   |
+| :----: | ------------------------- |
+|   🛑    | Function can modify state |
+|   💵    | Function is payable       |
+
+
+##### Accounting
+
+```text
+$ npx surya describe ./contracts/bridges/Accounting.sol
+
+ +  Accounting
+    - [Pub] <Constructor> #
+    - [Int] _transferFromBridge #
+    - [Int] _transferToBridge #
+    - [Int] _requireIsGovernance #
+    - [Int] _additionalDebit
+    - [Pub] getIsBonder
+    - [Pub] getCredit
+    - [Ext] getRawDebit
+    - [Pub] getDebitAndAdditionalDebit
+    - [Ext] stake ($)
+    - [Ext] unstake #
+       - modifiers: requirePositiveBalance
+    - [Ext] addBonder #
+       - modifiers: onlyGovernance
+    - [Ext] removeBonder #
+       - modifiers: onlyGovernance
+    - [Int] _addCredit #
+    - [Int] _addDebit #
+
+
+ ($) = payable function
+ # = non-constant function
+```
+
+##### Bridge
+
+```text
+$ npx surya describe ./contracts/bridges/Bridge.sol
+ +  Bridge (Accounting)
+    - [Pub] <Constructor> #
+       - modifiers: Accounting
+    - [Pub] getTransferId
+    - [Pub] getChainId
+    - [Pub] getTransferRootId
+    - [Pub] getTransferRoot
+    - [Ext] getBondedWithdrawalAmount
+    - [Ext] isTransferIdSpent
+    - [Ext] withdraw #
+    - [Ext] bondWithdrawal #
+       - modifiers: onlyBonder,requirePositiveBalance
+    - [Ext] settleBondedWithdrawal #
+    - [Ext] settleBondedWithdrawals #
+    - [Ext] rescueTransferRoot #
+       - modifiers: onlyGovernance
+    - [Int] _markTransferSpent #
+    - [Int] _addToAmountWithdrawn #
+    - [Int] _setTransferRoot #
+    - [Int] _bondWithdrawal #
+    - [Prv] _fulfillWithdraw #
+
+
+ ($) = payable function
+ # = non-constant function
+
+```
+
+##### L2_Bridge
+
+```text
+$ npx surya describe ./contracts/bridges/L2_Bridge.sol
+npx: installed 63 in 1.792s
+ +  L2_Bridge (Bridge)
+    - [Pub] <Constructor> #
+       - modifiers: Bridge
+    - [Int] _sendCrossDomainMessage #
+    - [Int] _verifySender #
+    - [Pub] send #
+    - [Ext] commitTransfers #
+    - [Ext] distribute #
+       - modifiers: onlyL1Bridge
+    - [Ext] bondWithdrawalAndDistribute #
+       - modifiers: onlyBonder,requirePositiveBalance
+    - [Ext] setTransferRoot #
+       - modifiers: onlyL1Bridge
+    - [Int] _commitTransfers #
+    - [Int] _distribute #
+    - [Int] _transferFromBridge #
+    - [Int] _transferToBridge #
+    - [Int] _requireIsGovernance #
+    - [Ext] setAmmWrapper #
+       - modifiers: onlyGovernance
+    - [Ext] setL1BridgeAddress #
+       - modifiers: onlyGovernance
+    - [Ext] setL1MessengerWrapperAddress #
+       - modifiers: onlyGovernance
+    - [Ext] setMessengerGasLimit #
+       - modifiers: onlyGovernance
+    - [Ext] addSupportedChainIds #
+       - modifiers: onlyGovernance
+    - [Ext] removeSupportedChainIds #
+       - modifiers: onlyGovernance
+    - [Ext] setMinimumForceCommitDelay #
+       - modifiers: onlyGovernance
+    - [Ext] setMaxPendingTransfers #
+       - modifiers: onlyGovernance
+    - [Ext] setHopBridgeTokenOwner #
+       - modifiers: onlyGovernance
+    - [Ext] setMinimumBonderFeeRequirements #
+       - modifiers: onlyGovernance
+    - [Pub] getNextTransferNonce
+
+
+ ($) = payable function
+ # = non-constant function
+```
+
+##### L1_Bridge
+
+```text
+$ npx surya describe ./contracts/bridges/L1_Bridge.sol
+npx: installed 63 in 3.544s
+ +  L1_Bridge (Bridge)
+    - [Pub] <Constructor> #
+       - modifiers: Bridge
+    - [Ext] sendToL2 ($)
+    - [Ext] bondTransferRoot #
+       - modifiers: onlyBonder,requirePositiveBalance
+    - [Ext] confirmTransferRoot #
+       - modifiers: onlyL2Bridge
+    - [Int] _distributeTransferRoot #
+    - [Ext] challengeTransferBond ($)
+    - [Ext] resolveChallenge #
+    - [Int] _additionalDebit
+    - [Int] _requireIsGovernance #
+    - [Ext] setGovernance #
+       - modifiers: onlyGovernance
+    - [Ext] setCrossDomainMessengerWrapper #
+       - modifiers: onlyGovernance
+    - [Ext] setChainIdDepositsPaused #
+       - modifiers: onlyGovernance
+    - [Ext] setChallengeAmountMultiplier #
+       - modifiers: onlyGovernance
+    - [Ext] setChallengeAmountDivisor #
+       - modifiers: onlyGovernance
+    - [Ext] setChallengePeriodAndTimeSlotSize #
+       - modifiers: onlyGovernance
+    - [Ext] setChallengeResolutionPeriod #
+       - modifiers: onlyGovernance
+    - [Ext] setMinTransferRootBondDelay #
+       - modifiers: onlyGovernance
+    - [Pub] getBondForTransferAmount
+    - [Pub] getChallengeAmountForTransferAmount
+    - [Pub] getTimeSlot
+
+
+ ($) = payable function
+ # = non-constant function
+```
+
+##### L2_AmmWrapper
+
+```text
+$ npx surya describe ./contracts/bridges/L2_AmmWrapper.sol
+npx: installed 63 in 2.339s
+ +  L2_AmmWrapper
+    - [Pub] <Constructor> #
+    - [Pub] swapAndSend ($)
+    - [Ext] attemptSwap #
+
+
+ ($) = payable function
+ # = non-constant function
+```
+
+##### ArbitrumMessengerWrapper
+
+```text
+$ npx surya describe ./contracts/wrappers/ArbitrumMessengerWrapper.sol
+npx: installed 63 in 2.389s
+ +  ArbitrumMessengerWrapper (MessengerWrapper)
+    - [Pub] <Constructor> #
+    - [Pub] sendCrossDomainMessage #
+       - modifiers: onlyL1Bridge
+    - [Pub] verifySender #
+
+
+ ($) = payable function
+ # = non-constant function
+```
+
+##### OptimismMessengerWrapper
+
+```text
+$ npx surya describe ./contracts/./wrappers/OptimismMessengerWrapper.sol
+npx: installed 63 in 3.061s
+ +  OptimismMessengerWrapper (MessengerWrapper)
+    - [Pub] <Constructor> #
+    - [Pub] sendCrossDomainMessage #
+       - modifiers: onlyL1Bridge
+    - [Pub] verifySender #
+
+
+ ($) = payable function
+ # = non-constant function
+```
+
+##### XDaiMessengerWrapper
+
+```text
+$ npx surya describe ./contracts/./wrappers/XDaiMessengerWrapper.sol
+npx: installed 63 in 4.416s
+ +  XDaiMessengerWrapper (MessengerWrapper)
+    - [Pub] <Constructor> #
+    - [Pub] sendCrossDomainMessage #
+       - modifiers: onlyL1Bridge
+    - [Pub] verifySender #
+
+
+ ($) = payable function
+ # = non-constant function
+```
+
+<!-- ```text
+$ npx surya describe ./Contract.sol
+``` -->
+
+## License
+
+This report falls under the terms described in the included [LICENSE](./LICENSE).
+
+{{> partials/features}}
+<link rel="stylesheet" href="./style/print.css"/>

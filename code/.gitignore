@@ -1,0 +1,15 @@
+node_modules
+.env
+
+#Buidler files
+cache
+artifacts
+
+dist
+
+package-lock.json
+yarn.lock
+
+abi/*
+data/*
+scripts/deploy_config.json
