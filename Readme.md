@@ -55,7 +55,6 @@
      - [L2_Bridge._distribute might mint tokens for the Layer 1 Bridge and they&#x27;ll be locked](#l2_bridge_distribute-might-mint-tokens-for-the-layer-1-bridge-and-theyll-be-locked)
      - [Consider emitting events when updating the L2_Bridge config](#consider-emitting-events-when-updating-the-l2_bridge-config)
      - [Make L2_Bridge.send external](#make-l2_bridgesend-external)
-     - [Committing transfers should fail early if the destinationChainId isn&#x27;t supported](#committing-transfers-should-fail-early-if-the-destinationchainid-isnt-supported)
      - [L2_Bridge.setMinimumBonderFeeRequirements should check minBonderBps for validity](#l2_bridgesetminimumbonderfeerequirements-should-check-minbonderbps-for-validity)
      - [Improve gas usage in L2_AmmWrapper](#improve-gas-usage-in-l2_ammwrapper)
      - [Events exist but they&#x27;re not emitted in Accounting](#events-exist-but-theyre-not-emitted-in-accounting)
@@ -85,9 +84,9 @@
 
 | SEVERITY       |    OPEN    |    CLOSED    |
 |----------------|:----------:|:------------:|
-|  Informational  |  3  |  0  |
-|  Minor  |  8  |  0  |
-|  Medium  |  1  |  0  |
+|  Informational  |  0  |  3  |
+|  Minor  |  0  |  7  |
+|  Medium  |  0  |  1  |
 |  Major  |  0  |  0  |
 
 ## Executive summary
@@ -100,7 +99,7 @@ The review was conducted over the course of **2.5 weeks** from **March 29 to Apr
 
 During the first week, we started by viewing the kick-off call and getting more familiar with the architecture and the overall setup.
 
-In the second day of the audit, we updated the commit hash to include a Merkle tree update. The `MerkleUtils` library was swapped out with the one Optimism is using. The scope was increased to include a few other contracts that are part of the system and extend the original scope included contracts.
+On the second day of the audit, we updated the commit hash to include a Merkle tree update. The `MerkleUtils` library was swapped out with the one Optimism is using. The scope was increased to include a few other contracts that are part of the system and extend the original scope included contracts.
 
 During the 3rd day, after getting more familiar with the code and the overall architecture, we proceeded to read the whitepaper and the rest of the documentation. Our goal was to understand all the key terms and components to make sure the definitions are completely understood in the context of the system.
 
@@ -292,7 +291,7 @@ At the moment, checking the artifacts is not [that](https://github.community/t/b
 
 
 ### [`L2_Bridge._distribute` might mint tokens for the Layer 1 Bridge and they&#x27;ll be locked](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/9)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Medium](https://img.shields.io/static/v1?label=Severity&message=Medium&color=FF9500&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Medium](https://img.shields.io/static/v1?label=Severity&message=Medium&color=FF9500&style=flat-square)
 
 **Description**
 
@@ -381,7 +380,7 @@ The fee doesn't seem necessary if the Layer 1 Bridge calls the external `distrib
 
 
 ### [Consider emitting events when updating the L2_Bridge config](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/17)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
+![Issue status: Acknowledged](https://img.shields.io/static/v1?label=Status&message=Acknowledged&color=007AFF&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
 
 **Description**
 
@@ -448,7 +447,7 @@ Similarly can be done for `L1_Bridge`.
 
 
 ### [Make `L2_Bridge.send` external](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/16)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
 
 **Description**
 
@@ -463,58 +462,8 @@ Consider defining the method as `external` if it's not called internally.
 ---
 
 
-### [Committing transfers should fail early if the `destinationChainId` isn&#x27;t supported](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/15)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
-
-**Description**
-
-Anyone can call the method `commitTransfers` to commit the current pending transfers.
-
-
-[code/contracts/bridges/L2_Bridge.sol#L153-L160](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/blob/24ccdb4d4528ecb4e92c3d7ac5e1909bf8de34f7/code/contracts/bridges/L2_Bridge.sol#L153-L160)
-```solidity
-    /**
-     * @dev Aggregates all pending Transfers to the `destinationChainId` and sends them to the
-     * L1_Bridge as a TransferRoot.
-     * @param destinationChainId The chainId of the TransferRoot's destination chain
-     */
-    function commitTransfers(uint256 destinationChainId) external {
-        uint256 minForceCommitTime = lastCommitTimeForChainId[destinationChainId].add(minimumForceCommitDelay);
-        require(minForceCommitTime < block.timestamp || getIsBonder(msg.sender), "L2_BRG: Only Bonder can commit before min delay");
-```
-
-The Bonder can call this method anytime they want.
-
-
-[code/contracts/bridges/L2_Bridge.sol#L160](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/blob/24ccdb4d4528ecb4e92c3d7ac5e1909bf8de34f7/code/contracts/bridges/L2_Bridge.sol#L160)
-```solidity
-        require(minForceCommitTime < block.timestamp || getIsBonder(msg.sender), "L2_BRG: Only Bonder can commit before min delay");
-```
-
-But any other actor can call the method if enough time has passed since the previous commit time.
-
-If they specify an incorrect (unsupported) chain id, the method will still try to call `_commitTransfers`. In which case it should fail if no transfers are pending. It is better to fail earlier if the chain id is unsupported.
-
-
-**Recommendation**
-
-Check the provided `destinationChainId` to be valid. 
-
-```solidity
-require(supportedChainIds[chainId], "L2_BRG: destinationChainId is not supported");
-```
-
-In case the chain was previously supported and it is disabled right now, some transfers can remain in a pending state, still uncommitted. It is better to be more explicit about each state you want to support and how.
-
-In case there are pending transfers, you should still allow committing the transfers, even if the chain is not supported anymore, but not allow creating new pending transfers.
-
-Consider allowing pending transfers if the minimum time has passed, even if the chain id is not supported anymore, only if there are pending transfers. If the logic seems messy or too complicated to be handled in `commitTransfers`, consider creating a `flushTransfers` method just for this use case.
-
----
-
-
 ### [`L2_Bridge.setMinimumBonderFeeRequirements` should check `minBonderBps` for validity](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/13)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
 
 **Description**
 
@@ -541,7 +490,7 @@ Check the value of `minBonderBps` to be something less than `10000`.
 
 
 ### [Improve gas usage in `L2_AmmWrapper`](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/11)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
 
 **Description**
 
@@ -667,7 +616,7 @@ There are instances where some state variables are never changed in other contra
 
 
 ### [Events exist but they&#x27;re not emitted in `Accounting`](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/4)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
 
 **Description**
 
@@ -730,7 +679,7 @@ Emit events when staking and unstaking.
 
 
 ### [Optimize `_ceilLog2` by using `uint256`](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/3)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
 
 **Description**
 
@@ -857,7 +806,7 @@ Modify the loop iterator from `uint8` to `uint256` to reduce gas costs, while ha
 
 
 ### [Emit events when adding and removing bonders](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/2)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Minor](https://img.shields.io/static/v1?label=Severity&message=Minor&color=FFCC00&style=flat-square)
 
 **Description**
 
@@ -913,7 +862,7 @@ Consider emitting events when adding or removing bonders.
 
 
 ### [The method `getChainId` can be restricted to `pure` in Solidity &lt;0.8.x](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/19)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Informational](https://img.shields.io/static/v1?label=Severity&message=Informational&color=34C759&style=flat-square)
+![Issue status: Acknowledged](https://img.shields.io/static/v1?label=Status&message=Acknowledged&color=007AFF&style=flat-square) ![Informational](https://img.shields.io/static/v1?label=Severity&message=Informational&color=34C759&style=flat-square)
 
 **Description**
 
@@ -944,7 +893,7 @@ Unless there's a reason to keep the `view`, consider changing to `pure`.
 
 
 ### [Some error messages in `L2_AmmWrapper` refer to `L2_Bridge`](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/12)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Informational](https://img.shields.io/static/v1?label=Severity&message=Informational&color=34C759&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Informational](https://img.shields.io/static/v1?label=Severity&message=Informational&color=34C759&style=flat-square)
 
 **Description**
 
@@ -1012,7 +961,7 @@ Update the error messages to correctly reflect the current contract.
 
 
 ### [Update comments to be more swapper agnostic](https://github.com/monoceros-alpha/review-hopprotocol-contracts-2021-04/issues/7)
-![Issue status: Open](https://img.shields.io/static/v1?label=Status&message=Open&color=5856D6&style=flat-square) ![Informational](https://img.shields.io/static/v1?label=Severity&message=Informational&color=34C759&style=flat-square)
+![Issue status: Fixed](https://img.shields.io/static/v1?label=Status&message=Fixed&color=5AC8FA&style=flat-square) ![Informational](https://img.shields.io/static/v1?label=Severity&message=Informational&color=34C759&style=flat-square)
 
 **Description**
 
